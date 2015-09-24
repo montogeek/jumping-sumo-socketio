@@ -1,37 +1,30 @@
-var http = require('http')
-var path = require('path')
-var express = require('express')
-var Primus = require('primus')
-var Sumo = require('./lib/sumo')
+'use strict'
 
-var app = express()
-var server = http.createServer(app)
-var primus = new Primus(server, { transformer: 'websockets', parser: 'JSON' })
-var port = process.env.PORT || 8082
-var sumo = new Sumo()
+let handler = (req, res) => {
+  fs.readFile(__dirname + '/public/index.html', (err, data) => {
+    if (err) {
+      res.writeHead(500)
+      return res.end('Error loading index.html')
+    }
 
-sumo.connect()
-sumo.on('connected', () => console.log('Sumo connected'))
-
-app.use(express.static(path.join(__dirname, 'public')))
-primus.use('emitter', require('primus-emitter'))
-
-server.listen(port, function () {
-  console.log('Listening on port %s', port)
-})
-
-primus.on('connection', function (socket) {
-
-  socket.on('cmd', function (cmd, arg) {
-    sumo.command(cmd, arg)
+    res.writeHead(200)
+    res.end(data)
   })
+}
 
-  sumo.on('battery', function (battery) {
-    socket.send('battery', battery)
+var app = require('http').createServer(handler)
+var io = require('socket.io')(app)
+var fs = require('fs')
+var Robot = require('./lib/robot')
+
+app.listen(8081);
+
+var robot = new Robot()
+robot.connect()
+robot.on('connected', () => console.log('Robot connected'))
+
+io.on('connection', (socket) => {
+  socket.on('cmd', (cmd, speed) => {
+    robot.command(cmd, speed)
   })
-
-  sumo.on('video', function (data) {
-    socket.send('video', data.toString('base64'))
-  })
-
 })
